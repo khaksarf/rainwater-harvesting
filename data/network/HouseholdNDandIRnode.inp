@@ -4,21 +4,21 @@
 [JUNCTIONS]
 ;ID              	Elev        	Demand      	Pattern         
  Meter           	0           	0           	                	;
- IR1             	0           	0           	                	;
- ND1             	0           	0           	                	;
+ IR              	0           	0          	P_IR            	;
+ ND              	0           	-.20          	P_ND            	;
 
 [RESERVOIRS]
 ;ID              	Head        	Pattern         
- RE1             	0           	                	;
+ RE1             	1           	                	;
 
 [TANKS]
 ;ID              	Elevation   	InitLevel   	MinLevel    	MaxLevel    	Diameter    	MinVol      	VolCurve
 
 [PIPES]
 ;ID              	Node1           	Node2           	Length      	Diameter    	Roughness   	MinorLoss   	Status
- PI2             	Meter           	IR1             	6           	0.75        	100         	0           	Open  	;
- PI1             	RE1             	Meter           	10          	12          	100         	0           	Open  	;
- 1               	ND1             	Meter           	3           	.75         	100         	0           	Open  	;
+ P_IR            	Meter           	IR              	6           	0.75        	100         	0           	Open  	;
+ P_M             	RE1             	Meter           	10          	2          	100         	0           	Open  	;
+ P_ND            	ND              	Meter           	3           	.75         	100         	0           	Open  	;
 
 [PUMPS]
 ;ID              	Node1           	Node2           	Parameters
@@ -36,6 +36,16 @@
 
 [PATTERNS]
 ;ID              	Multipliers
+;irrigation pattern
+ P_IR            	1           	1           	1           	1           	1           	1           
+ P_IR            	1           	1           	1           	1           	1           	1           
+ P_IR            	1           	1           	1           	1           	1           	1           
+ P_IR            	1           	1           	1           	1           	1           	1           
+;negative node demand
+ P_ND            	1           	1           	1           	1           	1           	1           
+ P_ND            	1           	1           	1           	1           	1           	1           
+ P_ND            	1           	1           	1           	1           	1           	1           
+ P_ND            	1           	1           	1           	1           	1           	1           
 
 [CURVES]
 ;ID              	X-Value     	Y-Value
@@ -47,7 +57,11 @@
 
 
 
+
+
 [RULES]
+
+
 
 
 
@@ -111,7 +125,7 @@
  MAXCHECK           	10
  DAMPLIMIT          	0
  Unbalanced         	Continue 10
- Pattern            	1
+ Pattern            	P_IR
  Demand Multiplier  	1.0
  Emitter Exponent   	0.5
  Quality            	None ug/L
@@ -120,10 +134,10 @@
 
 [COORDINATES]
 ;Node            	X-Coord         	Y-Coord
- Meter           	-795.34         	4914.91         
- IR1             	-94.72          	4916.13         
- ND1             	-795.13         	4991.65         
- RE1             	-978.93         	4914.91         
+ Meter           	-900.00         	5000.00         
+ IR              	-700.00         	5000.00         
+ ND              	-900.00         	5050.00         
+ RE1             	-980.00         	5000.00         
 
 [VERTICES]
 ;Link            	X-Coord         	Y-Coord
