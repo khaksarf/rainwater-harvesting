@@ -1,0 +1,517 @@
+package sim.app.rainwaterFramework;
+
+/*
+Copyright 2006 by Sean Luke and George Mason University
+Licensed under the Academic Free License version 3.0
+See the file "LICENSE" for more information
+*/
+
+
+
+import sim.app.rainwaterFramework.Household;
+import sim.engine.*;
+import java.io.*;
+import java.util.Scanner;
+import java.util.Iterator;
+import java.util.*;
+
+
+public class market implements Steppable {
+	
+	public market() {
+		
+	}
+  
+  //Retail Electricity Rate --> Also used as the penalty rate
+  public double retailRate = 0.351; //#####
+  //Avoided Fuel Cost Rate
+  public double avoidedFuelCostRate = 0.0932; //#####
+  
+  /*Current hour of year [0-8759] */
+  public int currentHour = 0;
+  /*Current day of year [0-364] */
+  public int currentDay = 0;
+  
+  /*Number of hours in a standard year (not a leap year) */
+  public int hoursInYear = 8760;
+  /*Number of days in a standard year (not a leap year) */
+  public int daysInYear = 365;
+	
+  public boolean initialized = false;
+  
+  //This int determines the storage condition of the program: 0 for No Storage, 1 for Automatic Storage, 2 for Predefined Storage
+  public int storageSim = 0;
+  
+  //This int determines the forecasting method: 0 for perfect, 1 for simple - Only use perfect forecast for now!!!!
+  public int forecastingMethod = 0;
+  
+  //This int represents the number of households in the system
+  //There must be this many households in the basic information input file!!!
+  public int numberHouses = 2;
+  //An array to contain the households
+  public Household[] households;
+  
+  //Final Result Containers
+  public double[][][] sellerHistory = new double[this.numberHouses][this.hoursInYear][3];
+  public double[][][] buyerHistory = new double[this.numberHouses][this.hoursInYear][2];
+  
+  //New final result containers - Created during EWC Symposium 2019
+  public double[] intervalAverageSellerPrice = new double[this.hoursInYear];
+  public double[] runningAverageSellerPrice = new double[this.hoursInYear];
+
+  
+  //These steps are performed each trade interval
+  public void step(SimState state) {
+  
+	//Initialization call (only performed once)
+	if (initialized == false) {
+		set_households();
+	}
+	
+	//Send households to exchange module
+	if (storageSim == 0) {
+		System.out.println("Current Increment = " + this.currentHour);
+		exchange();
+	}
+	this.currentHour++;
+	if ((this.currentHour % 24) == 0) {
+		this.currentDay++;
+	}
+    for (int i = 0; i < this.numberHouses; i++) {
+    	this.households[i].step_increment();
+    }
+  
+    //This will tally up the results after the final trade interval
+    if (this.currentHour == this.hoursInYear) {
+    	this.households[0].printRainfallToTank();
+  	  if (storageSim == 1 || storageSim == 2) {
+  		  //tallyOPSFStorage();
+  	  } else {
+  		  //tallyOPSF();
+  	}
+	  
+  }
+  
+  }
+  
+  //This method initializes the households with basic information, demand profile, and production profile
+  public void set_households() {
+  	this.households = new Household[this.numberHouses];
+  	
+//************************Basic Information Initialization Code*********************
+  	
+    //Excel File 1 - Basic Information
+  	String filePath = "C:\\Rainwater Harvesting\\Basic Information.txt";
+
+  	File file = new File(filePath);
+
+  	try {
+
+  	    Scanner sc = new Scanner(file);
+  	    
+  	    int index = 0;
+
+  	    while (sc.hasNextLine()) {
+  	        String i = sc.nextLine();
+  	        //System.out.println(i);
+  	        String[] parts = i.split("\t");
+  	        boolean hasTank = Boolean.parseBoolean(parts[0]);
+  	        double catchmentArea = Double.parseDouble(parts[1]);
+            double tankDiameter = Double.parseDouble(parts[2]);
+            double tankHeight = Double.parseDouble(parts[3]);
+            String NDID = parts[4];
+            String IRID = parts[5];
+            String MSID = parts[6];
+            double WTA = Double.parseDouble(parts[7]);
+            double WTP = Double.parseDouble(parts[8]);
+            
+            Household objectSet = new Household(index, hasTank, catchmentArea, tankDiameter, tankHeight, NDID, IRID, MSID, WTA, WTP);
+			this.households[index] = objectSet;
+            
+  	        index++;
+  	    }
+  	    sc.close();
+  	} 
+  	catch (FileNotFoundException e) {
+  	    e.printStackTrace();
+  	}
+  	
+  	//System.exit(0);
+  	
+//************************End of Basic Information Initialization Code*********************
+  	
+//************************Daily Max Temperature Initialization Code***************************************
+  	
+  	//Daily max temperature must be a household columnar data set with 365 rows --> Cells indicate temperature in degrees F
+  	String filePath2 = "C:\\Rainwater Harvesting\\Daily Max Temperature.txt";
+  	
+  	File file2 = new File(filePath2);
+  	
+  	try {
+  		
+  		double[] dailyMaxTemperature = new double[this.daysInYear];
+  		this.households[0].setDailyMaxTemperature(dailyMaxTemperature);
+  		
+  	    Scanner sc = new Scanner(file2);
+  	    
+  	    int index = 0;
+
+  	    while (sc.hasNextLine()) {
+	        String i = sc.nextLine();
+	        dailyMaxTemperature[index] = Double.parseDouble(i);
+	        index++;
+	    }
+  	    
+  	    for (int j = 0; j < this.daysInYear; j++) {
+  	    	System.out.println(dailyMaxTemperature[j]);
+  	    	//System.out.println(this.households[0].index);
+  	    }
+	    
+	    for (int i = 0; i < this.numberHouses; i++) {
+	    	double[] copyDailyMaxTemperature = new double[this.daysInYear];
+	    	for (int j = 0; j < this.daysInYear; j++) {
+	    		copyDailyMaxTemperature[j] = dailyMaxTemperature[j];
+	    	}
+	    	this.households[i].setDailyMaxTemperature(copyDailyMaxTemperature);
+	    	//this.households[i].setDailyMaxTemperature(dailyMaxTemperature);
+	    }
+  	    
+  	    sc.close();
+  	} 
+  	catch (FileNotFoundException e) {
+  	    e.printStackTrace();
+  	}
+  	
+  	//System.exit(0);
+  	
+//************************End of Daily Max Temperature Initialization Code************************************
+  	
+//************************Rainfall Initialization Code***************************************
+  	
+    //Rainfall must be a columnar data set with 8760 rows --> Cells indicate rainfall in inches
+  	String filePath3 = "C:\\Rainwater Harvesting\\Rainfall.txt";
+  	
+  	File file3 = new File(filePath3);
+  	
+  	try {
+  	    
+  		double[] rainfall = new double[this.hoursInYear];
+  		
+  		Scanner sc = new Scanner(file3);
+  	    
+  	    int index = 0;
+
+  	    while (sc.hasNextLine()) {
+  	    	String i = sc.nextLine();
+	        rainfall[index] = Double.parseDouble(i);
+	        index++;
+  	    }
+  	    
+  	    for (int i = 0; i < this.numberHouses; i++) {
+  	    	double[] copyRainfall = new double[this.hoursInYear];
+  	    	for (int j = 0; j < this.hoursInYear; j++) {
+  	    		copyRainfall[j] = rainfall[j];
+  	    	}
+  	    	this.households[i].setHourlyRainfall(copyRainfall);
+  	    }
+  	    
+  	    sc.close();
+  	    
+  	} catch(FileNotFoundException e) {
+  	    e.printStackTrace();
+  	}
+  	
+  	
+ //************************End of Rainfall Initialization Code************************************
+  	
+//************************Irrigation Demand Initialization Code***************************************
+  	
+    //Irrigation Demand must be a columnar data set with 8760 rows --> Cells indicate irrigation demand in gal
+  	String filePath4 = "C:\\Rainwater Harvesting\\Irrigation Demand.txt";
+  	
+  	File file4 = new File(filePath4);
+  	
+  	try {
+  	    
+  		double[] irrigationDemand = new double[this.hoursInYear];
+  		
+  		Scanner sc = new Scanner(file4);
+  	    
+  	    int index = 0;
+
+  	    while (sc.hasNextLine()) {
+  	    	String i = sc.nextLine();
+  	    	irrigationDemand[index] = Double.parseDouble(i);
+	        index++;
+  	    }
+  	    
+  	    for (int i = 0; i < this.numberHouses; i++) {
+  	    	double[] copyIrrigationDemand = new double[this.hoursInYear];
+  	    	for (int j = 0; j < this.hoursInYear; j++) {
+  	    		copyIrrigationDemand[j] = irrigationDemand[j];
+  	    	}
+  	    	this.households[i].setIrrigationDemand(copyIrrigationDemand);
+  	    }
+  	    
+  	    sc.close();
+  	    
+  	} catch(FileNotFoundException e) {
+  	    e.printStackTrace();
+  	}
+  	
+  	
+ //************************End of Irrigation Demand Initialization Code************************************
+  	
+  this.initialized = true;
+  	
+  }
+
+  public void exchange() {
+	  	boolean continuationFlag = true;
+	  	int currentRound = 0;
+	  	do {
+	  		
+	  		double[] excess = new double [this.numberHouses];
+	      	double[] demand = new double [this.numberHouses];
+	      	for (int i = 0; i < this.numberHouses; i++) {
+      			if (this.households[i].rainCheck()) {
+      				demand[i] = 0;
+      				excess[i] = 0;
+      				System.out.println("Rain check ------------------ No Trading Activity!!!!!");
+      			} else {
+      				if ((this.households[i].getDemand() - this.buyerHistory[i][this.currentHour][0]) > 0.0) { 
+    	      			demand[i] = this.households[i].getDemand() - this.buyerHistory[i][this.currentHour][0]; 
+    	      			//System.out.println(demand[i]);
+    	      			//System.exit(0);
+    	      		} else {
+    	      			demand[i] = 0;
+    	      		}
+    	      		
+    	      		if ((this.households[i].estimateAvailableStorage() - this.sellerHistory[i][this.currentHour][0]) > 0.0) {
+    	      			excess[i] = this.households[i].estimateAvailableStorage() - this.sellerHistory[i][this.currentHour][0];
+    	      			//System.out.println(excess[i]);
+    	      			//System.exit(0);
+    	      		} else {
+    	      			excess[i] = 0;
+    	      		}
+      			}	      		
+	      		
+	      	}
+	      	
+	      	//Boolean flag for zero demand
+	      	boolean zeroDemand = true;
+	      	for (int i = 0; i < this.numberHouses; i++) {
+	      		if (demand[i] > 0.0) {
+	      			zeroDemand = false;
+	      		}
+	      	}
+	      	if(zeroDemand) {
+	      		continuationFlag = false;
+	      	}
+	      	//Boolean flag for zero excess
+	      	boolean zeroExcess = true;
+	      	for (int i = 0; i < this.numberHouses; i++) {
+	      		if (excess[i] > 0.0) {
+	      			zeroExcess = false;
+	      		}
+	      	}
+	      	if(zeroExcess) {
+	      		continuationFlag = false;
+	      	}
+	      	
+	      	int buyerCount = 0;
+	      	int sellerCount = 0;
+	      	for (int i = 0; i < this.numberHouses; i++) {
+	      		if (excess[i] > 0) {
+	      			sellerCount++;
+	      		}
+	      		if (demand[i] > 0) {
+	      			buyerCount++;
+	      		}
+	      	}
+	      	int[] buyerIndex = new int[buyerCount];
+	      	int[] sellerIndex = new int[sellerCount];
+	      	//fill buyer index
+	      	int indexB = 0;
+	      	for (int i = 0; i < this.numberHouses; i++) {
+	      		if (demand[i] > 0) {
+	      			buyerIndex[indexB] = i;
+	      			indexB++;
+	      		}
+	      	}
+	      	//fill seller index
+	      	int indexS = 0;
+	      	for (int i = 0; i < this.numberHouses; i++) {
+	      		if (excess[i] > 0) {
+	      			sellerIndex[indexS] = i;
+	      			indexS++;
+	      		}
+	      	}
+	      	
+	      	//Functions for buyers
+	      	boolean[] buyerCovered = new boolean[buyerCount];
+	      	for (int i = 0; i < buyerCount; i++) {
+	      		buyerCovered[i] = false;
+	      	}
+	      	int[] buyersOrdered = new int[buyerCount];
+	      	//System.out.println("Buyers Ordered = " + buyersOrdered.length);
+	      	for (int i = 0; i < buyerCount; i++) {
+	      		int currentMaxIndex = 1000;
+	      		double currentMax = -10000000.0;
+	      		for (int j = 0; j < buyerCount; j++) {
+	      			if (this.households[buyerIndex[j]].WTP >= currentMax && buyerCovered[j] == false) {
+	      				currentMaxIndex = buyerIndex[j];
+	      				currentMax = this.households[buyerIndex[j]].WTP;
+	      			}
+	      		}
+	      		buyersOrdered[i] = currentMaxIndex;
+	      		for (int k = 0; k < buyerCount; k++) {
+	  				if (buyerIndex[k] == currentMaxIndex) {
+	  					buyerCovered[k] = true;
+	  				}
+	  			}
+	      	}
+	      	
+	      	//for (int i = 0; i < buyerCount; i++) {
+	      	//	System.out.println("Buyer Index = " + buyersOrdered[i] + " WTP = " + this.households[buyersOrdered[i]].getWTP());
+	      	//}
+	      	
+	      	
+	      	//Functions for sellers
+	      	boolean[] sellerCovered = new boolean[sellerCount];
+	      	for (int i = 0; i < sellerCount; i++) {
+	      		sellerCovered[i] = false;
+	      	}
+	      	int[] sellersOrdered = new int[sellerCount];
+	      	for (int i = 0; i < sellerCount; i++) {
+	      		int currentMinIndex = 1000;
+	      		double currentMin = 10000000.0;
+	      		for (int j = 0; j < sellerCount; j++) {
+	      			if (this.households[sellerIndex[j]].WTA <= currentMin && sellerCovered[j] == false) {
+	      				currentMinIndex = sellerIndex[j];
+	      				currentMin = this.households[sellerIndex[j]].WTA;
+	      			}
+	      		}
+	      		sellersOrdered[i] = currentMinIndex;
+	      		for (int k = 0; k < sellerCount; k++) {
+	  				if (sellerIndex[k] == currentMinIndex) {
+	  					sellerCovered[k] = true;
+	  				}
+	  			}
+	      	}
+	      	
+	      	int totalExchanges = 0;
+	      	if (buyersOrdered.length < sellersOrdered.length) {
+	      		totalExchanges = buyersOrdered.length;
+	      	} else {
+	      		totalExchanges = sellersOrdered.length;
+	      	}
+	      	
+	      	System.out.println(buyersOrdered.length);
+	      	//Boolean flag to check WTA and WTP of first paired traders
+	      	if (sellersOrdered.length == 0 || buyersOrdered.length == 0) {
+	      		continuationFlag = false;
+	      	} else {
+	      		if (this.households[buyersOrdered[0]].WTP < this.households[sellersOrdered[0]].WTA) {
+	          		continuationFlag = false;
+	          	}
+	      	}
+	      	
+	      	
+	      	for (int i = 0; i < totalExchanges; i++) {
+	      		int sellerIndex2 = sellersOrdered[i];
+	      		int buyerIndex2 = buyersOrdered[i];
+	      		double seller_wta = this.households[sellerIndex2].WTA;
+	      		double buyer_wtp = this.households[buyerIndex2].WTP;
+	      		double seller_cap = excess[sellerIndex2];
+	      		double buyer_need = demand[buyerIndex2];
+	      		//Exchange Amount in units of kWh
+	      		double exchangeAmount = 0.0;
+	      		if (seller_wta <= buyer_wtp) {
+	  				if (seller_cap >= buyer_need) {
+	  					exchangeAmount = buyer_need;
+	  				} else if(seller_cap <= 0) {
+	  					exchangeAmount = 0;
+	  				} else {
+	  					exchangeAmount = seller_cap;
+	  				}
+	  				
+	  				if (true) {
+	  					System.out.println("----------- An Exchange Has Been Made");
+	  					System.out.println("Seller: " + sellerIndex2 + " Seller WTA = " + seller_wta + " Buyer: " + buyerIndex2 + " Buyer WTP = " + buyer_wtp);
+	  					System.out.println("Seller Cap = " + seller_cap);
+	  					System.out.println("Buyer Need = " + buyer_need);
+	  					System.out.println("Exchange Amount = " + exchangeAmount);
+	  					
+	  				}
+	  				
+	  				//System.exit(0);
+	  				
+	  				
+	  				
+	  			} else {
+	  				System.out.println("No Exchange Made -----------");
+	  				System.out.println("Seller: " + sellerIndex2 + " Seller WTA = " + seller_wta + " Buyer: " + buyerIndex2 + " Buyer WTP = " + buyer_wtp);
+	  				System.out.println("Seller Cap = " + seller_cap);
+	  				System.out.println("Buyer Need = " + buyer_need);
+	  			}
+	      		
+	      		System.out.println("Exchange = " + exchangeAmount);
+	      		if (exchangeAmount > 0) {
+	      			this.sellerHistory[sellerIndex2][this.currentHour][0] += exchangeAmount;
+	      			this.sellerHistory[sellerIndex2][this.currentHour][1] += buyer_wtp * exchangeAmount;
+	      			this.buyerHistory[buyerIndex2][this.currentHour][0] += exchangeAmount;
+	      			this.buyerHistory[buyerIndex2][this.currentHour][1] += buyer_wtp * exchangeAmount;
+	      		}
+	      	}
+	  		
+	  		currentRound++;
+	  	} while (continuationFlag);
+	  	
+	  	System.out.println("End of Trade Interval - " + this.currentHour + "   ******************************");
+	  	for (int i = 0; i < this.numberHouses; i++) {
+	  		if (this.households[i].hasTank) {
+	  			this.households[i].scheduleExchangeDischarge(this.sellerHistory[i][this.currentHour][0]);
+	  			this.households[i].storageCalcBegin();
+	  			this.households[i].rainfallStorageCalc();
+	  		}
+	  	}
+	  	
+	  	
+	  }
+  
+  public void readNodalPressures() {
+	  //Two column text file with node ID tag in left column and nodal pressure in units of psi in right column
+	  String filePath = "C:\\Rainwater Harvesting\\Nodal Pressures.txt";
+
+	  File file = new File(filePath);
+
+	  try {
+	  	
+	  	  String[] nodeTag = new String[this.numberHouses * 3];
+	  	  double[] nodePressure = new double[this.numberHouses * 3];
+	  	
+	      Scanner sc = new Scanner(file);
+	      
+	      int index = 0;
+
+	      while (sc.hasNextLine()) {
+	          String i = sc.nextLine();
+	          String[] parts = i.split("\t");
+	  	      nodeTag[index] = parts[0];
+	  	      nodePressure[index] = Double.parseDouble(parts[1]);
+	          index++;
+	      }
+	      
+	      for (int i = 0; i < this.numberHouses; i++) {
+	    	  this.households[i].readNodalPressures(nodeTag, nodePressure);
+	      }
+	      
+	      sc.close();
+	  } 
+	  catch (FileNotFoundException e) {
+	      e.printStackTrace();
+	  }
+  }
+
+  }
