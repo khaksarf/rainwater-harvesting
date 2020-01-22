@@ -4,8 +4,8 @@
 [JUNCTIONS]
 ;ID              	Elev        	Demand      	Pattern         
  Meter           	0           	0           	                	;
- IR              	0           	0          	P_IR            	;
- ND              	0           	-.20          	P_ND            	;
+ IR              	0           	1           	P_IR            	;
+ ND              	0           	-1          	P_ND            	;
 
 [RESERVOIRS]
 ;ID              	Head        	Pattern         
@@ -17,7 +17,7 @@
 [PIPES]
 ;ID              	Node1           	Node2           	Length      	Diameter    	Roughness   	MinorLoss   	Status
  P_IR            	Meter           	IR              	6           	0.75        	100         	0           	Open  	;
- P_M             	RE1             	Meter           	10          	2          	100         	0           	Open  	;
+ P_M             	RE1             	Meter           	10          	2           	100         	0           	Open  	;
  P_ND            	ND              	Meter           	3           	.75         	100         	0           	Open  	;
 
 [PUMPS]
@@ -59,7 +59,9 @@
 
 
 
+
 [RULES]
+
 
 
 
